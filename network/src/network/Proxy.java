@@ -30,7 +30,7 @@ public class Proxy {
     public static String serverAddress;
 	static int data_size = 988;			// (checksum:8, seqNum:4, data<=988) Bytes : 1000 Bytes total
 	static int win_size = 10;
-	static int timeoutVal = 300;		// 300ms until timeout
+	static int timeoutVal = 500;		// 300ms until timeout
 	int segLength = 100;
 	int base;					// base sequence number of window
 	int nextSeqNum;				// next sequence number in window
@@ -42,6 +42,7 @@ public class Proxy {
 	Semaphore s;				// guard CS for base, nextSeqNum
 	boolean isTransferComplete;	// if receiver has completely received the file
 	boolean start_send_pkt;
+	byte [] dataB;
 	
 	public Proxy() {
 		base = 0;
@@ -246,7 +247,8 @@ public class send_pkt extends Thread{
 			int pkt_size = 1000;
 			DatagramSocket sk1, sk2;
 			System.out.println("Proxy: sk1_dst_port=" + sk1_dst_port + ", " + "sk2_dst_port=" + sk2_dst_port + ".");
-			
+//			int i = 0;
+//			int k =1;
 			int prevSeqNum = -1;				// previous sequence number received in-order 
 			int nextSeqNum = 0;					// next expected sequence number
 			boolean isTransferComplete = false;	// (flag) if transfer is complete
@@ -279,14 +281,16 @@ public class send_pkt extends Thread{
 							
 							// if packet received in order
 							if (seqNum == nextSeqNum){
-								// if final packet (no data), send teardown ack
-								if (in_pkt.getLength() == 12 || in_pkt.getLength() < segLength){
+								
+								if (in_pkt.getLength() == 12){
 									byte[] ackPkt = generateAckPkt(-2);	// construct teardown packet (ack -2)
 									// send 20 acks in case last ack is not received by Sender (assures Sender teardown)
-									for (int i=0; i<20; i++) sk2.send(new DatagramPacket(ackPkt, ackPkt.length, dst_addr, sk2_dst_port));
+									for (int j=0; j<20; j++) sk2.send(new DatagramPacket(ackPkt, ackPkt.length, dst_addr, sk2_dst_port));
 									isTransferComplete = true;			// set flag to true
 									start_send_pkt = true;
 									System.out.println("Proxy: All packets received!");
+									receivedData = new String(dataB, "UTF-8"); 
+									System.out.println("Proxy: Data rcvd: "+ receivedData);
 	//								continue;	// end listener
 								}
 								// else send ack
@@ -295,13 +299,24 @@ public class send_pkt extends Thread{
 									sk2.send(new DatagramPacket(ackPkt, ackPkt.length, dst_addr, sk2_dst_port));
 									System.out.println("Proxy: Sent Ack " + seqNum);
 								}
-							
+								if (in_pkt.getLength() < segLength && in_pkt.getLength() != 12){
+									isTransferComplete = true;			// set flag to true
+									start_send_pkt = true;
+									System.out.println("Proxy:  packet received!");
+									byte [] dataB = copyOfRange(in_data, 12, in_pkt.getLength());
+									receivedData = new String(dataB, "UTF-8"); 
+									System.out.println("Proxy: Data rcvd: "+ receivedData);
+								}else{
 								
-								byte [] dataB = copyOfRange(in_data, 12, in_pkt.getLength());
-								receivedData = new String(dataB, "UTF-8"); 
-								System.out.println("Proxy: Data rcvd: "+ receivedData);
+								dataB = copyOfRange(in_data, 12, + 12 + segLength-1);
+								String rData = new String(dataB, "UTF-8"); 
+								receivedData += rData;
+								System.out.println("Proxy: Data ta inja rcvd: "+ receivedData);
+//								i++;
+//								k++;
 								nextSeqNum ++; 			// update nextSeqNum
 								prevSeqNum = seqNum;	// update prevSeqNum
+								}
 							}
 							
 							// if out of order packet received, send duplicate ack
@@ -360,7 +375,7 @@ public class send_pkt extends Thread{
 			DatagramSocket sk1, sk2;
 			try {
 				// create sockets
-				sk1 = new DatagramSocket();
+				sk1 = new DatagramSocket(10000);
 				sk2 = new DatagramSocket();		
 	
 				// create threads to process data
@@ -429,9 +444,11 @@ public class send_pkt extends Thread{
 //					String message = "GET /hello.htm HTTP/1.1";
 //					serverport = 80;
 //					serverAddress = "tutorialspoint.com";
-					proxy.receive_pkt_send_ack(10000, 20000);
+//				while(true){
+					proxy.receive_pkt_send_ack(10000, 20001);
 
 					proxy.RunSendAndReceiveThreads("msg from proxy");
+//				}
 //					new Proxy().proxytcpsend(message, serverport , serverAddress);
 //				}
 //				else if(sdata[1].split("=")[1].split(":")[0].equals("tcp") && sdata[2].split("=")[1].equals("udp")){

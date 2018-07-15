@@ -24,7 +24,7 @@ public class Client {
 	static int data_size = 988;			// (checksum:8, seqNum:4, data<=988) Bytes : 1000 Bytes total
 	static int win_size = 10;
 	int segLength;
-	static int timeoutVal = 300;		// 300ms until timeout
+	static int timeoutVal = 500;		// 300ms until timeout
 	static String dnsserver;
 	static String dnstype;
 	static String dnstarget;
@@ -41,6 +41,7 @@ public class Client {
 	boolean http_udp;
 	boolean dns;
 	boolean proxyAck_rcvd;
+	byte[] dataByte;
 	
 	public Client() {
 		base = 0;
@@ -150,6 +151,7 @@ public class Client {
 
 			 System.out.println("Client: dst_port=" + dst_port + ", Data=" + data);
 			 InetAddress dst_addr;
+			 int i = 0;
 			try{
 				 dst_addr = InetAddress.getByName("127.0.0.1"); 
 				 
@@ -184,21 +186,40 @@ public class Client {
 //									System.out.println("len<seg");
 								}
 								else{
-									if (dataBuffer.length < 0){
-										isFinalSeqNum = true;
-										out_data = generatePacket(nextSeqNum, new byte[0]);
-										isTransferComplete = true;
-										proxyAck_rcvd = true;
+//									if (dataBuffer.length < 0){
+//										isFinalSeqNum = true;
+//										out_data = generatePacket(nextSeqNum, new byte[0]);
+//										isTransferComplete = true;
+//										proxyAck_rcvd = true;
 //										System.out.println("len<0");
-									}
-									else{
-//										System.out.println("len>seg");
-										byte[] dataBytes = copyOfRange(dataBuffer, 0, segLength);
-										out_data = generatePacket(nextSeqNum, dataBytes);
-										dataBuffer = copyOfRange(dataBuffer, segLength, dataBuffer.length);
-									}
+//									}
+//									else{
+										System.out.println("len>seg");
+										
+//										byte[] dataBytes = copyOfRange(dataBuffer, 0, segLength);
+//										out_data = generatePacket(nextSeqNum, dataBytes);
+										
+//										System.out.println("segLength:"+segLength+ " i:"+i);
+										int seg = i*segLength;
+//										System.out.println("len:"+dataBuffer.length + "i*segLength+1:"+seg);
+										
+										if(seg < dataBuffer.length){
+										dataByte = copyOfRange(dataBuffer, seg, seg + segLength-1);
+										out_data = generatePacket(nextSeqNum, dataByte);
+//										System.out.println("buffer:"+ new String(dataByte, "UTF-8") );
+										i++;
+										}else{
+											isFinalSeqNum = true;
+											out_data = generatePacket(nextSeqNum, new byte[0]);
+											isTransferComplete = true;
+											proxyAck_rcvd = true;
+											System.out.println("len<0");
+										}
+										
+//									}
 							
 								}
+						
 								packetsList.add(out_data);	
 							}
 							
@@ -211,6 +232,7 @@ public class Client {
 							s.release();	/***** leave CS *****/
 						}
 					}
+			
 				} catch (Exception e) {
 					e.printStackTrace();
 				} finally {
@@ -239,9 +261,8 @@ public class Client {
 						byte[] in_data = new byte[12];	// ack packet with no data
 						DatagramPacket in_pkt = new DatagramPacket(in_data,	in_data.length);
 						try {
-							// while there are still packets yet to be received by receiver
+//							System.out.println("rcv ack");
 							while (!isTransferComplete) {
-								
 								sk_in.receive(in_pkt);
 								int ackNum = decodePacket(in_data);
 								System.out.println("Client: Received Ack " + ackNum);
@@ -382,7 +403,7 @@ public class Client {
 			DatagramSocket sk1, sk2;
 			try {
 				// create sockets
-				sk1 = new DatagramSocket();
+				sk1 = new DatagramSocket(20001);
 				sk2 = new DatagramSocket();		
 	
 				// create threads to process data
@@ -416,10 +437,11 @@ public class Client {
 //					String b = in.nextLine();
 //					String dst_Add = in.nextLine();
 //					serverAddress = dst_Add.split(":")[1];
-					
-					client.RunSendAndReceiveThreads("msg from client");	
+//				while(true){
+					client.RunSendAndReceiveThreads("012345678998765432100123456789");	
 
 					client.receive_pkt_send_ack(client.rcvPort,client.proxyPort);
+//				}
 //				}			
 //				else if (sdata[0].split("=")[0].equals("type")){
 ////					System.out.println("dns");
