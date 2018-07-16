@@ -31,7 +31,7 @@ public class Proxy {
 	static int data_size = 988;			// (checksum:8, seqNum:4, data<=988) Bytes : 1000 Bytes total
 	static int win_size = 10;
 	static int timeoutVal = 500;		// 300ms until timeout
-	int segLength = 100;
+	int segLength = 10;
 	int base;					// base sequence number of window
 	int nextSeqNum;				// next sequence number in window
 	String data;
@@ -293,22 +293,25 @@ public class send_pkt extends Thread{
 									System.out.println("Proxy: Data rcvd: "+ receivedData);
 	//								continue;	// end listener
 								}
-								// else send ack
+								else{
+									if (in_pkt.getLength() < segLength && in_pkt.getLength() != 12){
+										byte[] ackPkt = generateAckPkt(-2);
+										for (int j=0; j<20; j++) sk2.send(new DatagramPacket(ackPkt, ackPkt.length, dst_addr, sk2_dst_port));
+										isTransferComplete = true;			// set flag to true
+										start_send_pkt = true;
+										System.out.println("Proxy:  packet received!");
+										byte [] dataB = copyOfRange(in_data, 12, in_pkt.getLength());
+										receivedData = new String(dataB, "UTF-8"); 
+										System.out.println("Proxy: Data rcvd: "+ receivedData);
+									}
 								else{
 									byte[] ackPkt = generateAckPkt(seqNum);
 									sk2.send(new DatagramPacket(ackPkt, ackPkt.length, dst_addr, sk2_dst_port));
 									System.out.println("Proxy: Sent Ack " + seqNum);
-								}
-								if (in_pkt.getLength() < segLength && in_pkt.getLength() != 12){
-									isTransferComplete = true;			// set flag to true
-									start_send_pkt = true;
-									System.out.println("Proxy:  packet received!");
-									byte [] dataB = copyOfRange(in_data, 12, in_pkt.getLength());
-									receivedData = new String(dataB, "UTF-8"); 
-									System.out.println("Proxy: Data rcvd: "+ receivedData);
-								}else{
 								
-								dataB = copyOfRange(in_data, 12, + 12 + segLength-1);
+								
+								
+								dataB = copyOfRange(in_data, 12, + 12 + segLength);
 								String rData = new String(dataB, "UTF-8"); 
 								receivedData += rData;
 								System.out.println("Proxy: Data ta inja rcvd: "+ receivedData);
@@ -316,6 +319,7 @@ public class send_pkt extends Thread{
 //								k++;
 								nextSeqNum ++; 			// update nextSeqNum
 								prevSeqNum = seqNum;	// update prevSeqNum
+								}
 								}
 							}
 							

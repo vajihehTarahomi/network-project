@@ -147,6 +147,7 @@ public class Client {
 			this.data = data;
 		}
 		
+		@SuppressWarnings("deprecation")
 		public void run(){
 
 			 System.out.println("Client: dst_port=" + dst_port + ", Data=" + data);
@@ -177,12 +178,13 @@ public class Client {
 
 								byte[] dataBuffer = new byte[data_size]; 
 								dataBuffer = data.getBytes();
-								segLength = 100;
+								segLength = 10;
 								if (dataBuffer.length < segLength){
 									out_data = generatePacket(nextSeqNum, dataBuffer);
 									isFinalSeqNum = true;
 									isTransferComplete = true;
 									proxyAck_rcvd = true;
+//									this.stop();
 //									System.out.println("len<seg");
 								}
 								else{
@@ -204,15 +206,17 @@ public class Client {
 //										System.out.println("len:"+dataBuffer.length + "i*segLength+1:"+seg);
 										
 										if(seg < dataBuffer.length){
-										dataByte = copyOfRange(dataBuffer, seg, seg + segLength-1);
+										dataByte = copyOfRange(dataBuffer, seg, seg + segLength);
 										out_data = generatePacket(nextSeqNum, dataByte);
 //										System.out.println("buffer:"+ new String(dataByte, "UTF-8") );
 										i++;
 										}else{
 											isFinalSeqNum = true;
-											out_data = generatePacket(nextSeqNum, new byte[0]);
+											dataByte = copyOfRange(dataBuffer, dataBuffer.length - seg,dataBuffer.length);
+											out_data = generatePacket(nextSeqNum, dataByte);
 											isTransferComplete = true;
 											proxyAck_rcvd = true;
+//											this.stop();
 											System.out.println("len<0");
 										}
 										
@@ -255,6 +259,7 @@ public class Client {
 			this.sk_in = sk_in;
 		}
 		
+		@SuppressWarnings("deprecation")
 		public void run(){
 			
 					try {
@@ -269,6 +274,7 @@ public class Client {
 								
 								// if ack is not corrupted
 								if (ackNum != -1){
+
 									// if duplicate ack
 									if (base == ackNum + 1){
 										s.acquire();	/***** enter CS *****/
@@ -280,9 +286,13 @@ public class Client {
 									else if (ackNum == -2) {
 										isTransferComplete = true;
 										proxyAck_rcvd = true;
+										System.out.println("proxyAck_rcvd");
+//										this.stop();
+										receive_pkt_send_ack(rcvPort,proxyPort);
 									}
 									// else normal ack
 									else{
+//										System.out.println(ackNum);
 										base = ackNum++;	// update base number
 										s.acquire();	/***** enter CS *****/
 										if (base == nextSeqNum) setTimer(false);	// if no more unacknowledged packets in pipe, off timer
@@ -308,6 +318,7 @@ public class Client {
 		
 	public void receive_pkt_send_ack(int sk1_dst_port, int sk2_dst_port){
 		if(proxyAck_rcvd){
+//			System.out.println("rcv");
 			int pkt_size = 1000;
 			DatagramSocket sk1, sk2;
 			System.out.println("Client: sk1_dst_port=" + sk1_dst_port + ", " + "sk2_dst_port=" + sk2_dst_port + ".");
@@ -397,18 +408,22 @@ public class Client {
 		}
 	}
 	
+	@SuppressWarnings("deprecation")
 	public void RunSendAndReceiveThreads(String data){
+		DatagramSocket sk1, sk2;
+		send_pkt s = null;
+		receive_ack r = null;
 		if(!proxyAck_rcvd){
 //			System.out.println("send");
-			DatagramSocket sk1, sk2;
+			
 			try {
 				// create sockets
 				sk1 = new DatagramSocket(20001);
 				sk2 = new DatagramSocket();		
 	
 				// create threads to process data
-				send_pkt s = new send_pkt(sk2,proxyPort,data);
-				receive_ack r = new receive_ack(sk1);
+				 s = new send_pkt(sk2,proxyPort,data);
+				 r = new receive_ack(sk1);
 				s.start();
 				r.start();
 				
@@ -416,7 +431,11 @@ public class Client {
 				e.printStackTrace();
 				System.exit(-1);
 			}
-		}	
+		}
+		if(proxyAck_rcvd){
+			r.stop();
+			s.stop();
+		}
 	}
 	
 		public static void main(String[] args) throws Exception {
@@ -439,8 +458,8 @@ public class Client {
 //					serverAddress = dst_Add.split(":")[1];
 //				while(true){
 					client.RunSendAndReceiveThreads("012345678998765432100123456789");	
-
-					client.receive_pkt_send_ack(client.rcvPort,client.proxyPort);
+					System.out.println(client.proxyAck_rcvd);
+					
 //				}
 //				}			
 //				else if (sdata[0].split("=")[0].equals("type")){
